@@ -2,10 +2,20 @@
 #include <stdlib.h>
 #include <cuda_runtime.h>
 
-#define SIZE (1 << 23)
-#define RUNS 100
+int safe_input(const char* prompt) {
+    int value;
+    while (1) {
+        printf("%s", prompt);
+        if (scanf("%d", &value) == 1 && value > 0) {
+            break;
+        }
+        printf("Некорректный ввод. Пожалуйста, введите положительное целое число.\n");
+        // Очистка буфера ввода
+        while (getchar() != '\n');
+    }
+    return value;
+}
 
-// CUDA ���� ��� ������ ���� Bitonic Sort
 __global__ void bitonic_sort_step(int* data, int j, int k, int n) {
     unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= n) return;
@@ -36,6 +46,9 @@ void generate_random_array(int* arr, int size) {
 }
 
 int main() {
+    int SIZE = safe_input("Введите размер массива (рекомендуется степень двойки): ");
+    int RUNS = safe_input("Введите количество запусков: ");
+
     int* h_array = (int*)malloc(SIZE * sizeof(int));
     int* d_array;
 
@@ -47,7 +60,7 @@ int main() {
         int threads = threads_list[t];
         int blocks = (SIZE + threads - 1) / threads;
 
-        float times[RUNS];
+        float* times = (float*)malloc(RUNS * sizeof(float));
         float total_time = 0.0f;
 
         cudaEvent_t start, stop;
@@ -72,7 +85,7 @@ int main() {
 
             float ms = 0;
             cudaEventElapsedTime(&ms, start, stop);
-            times[r] = ms / 1000.0f;  // ������� � �������
+            times[r] = ms / 1000.0f;  // перевод в секунды
             total_time += times[r];
         }
 
@@ -80,17 +93,18 @@ int main() {
         printf("Array size: %d\n", SIZE);
 
         printf("First 5 runs:\n");
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 5 && i < RUNS; i++) {
             printf("Run %d: %.6f sec\n", i + 1, times[i]);
         }
 
         printf("\nLast 5 runs:\n");
-        for (int i = RUNS - 5; i < RUNS; i++) {
+        for (int i = (RUNS > 5) ? RUNS - 5 : 0; i < RUNS; i++) {
             printf("Run %d: %.6f sec\n", i + 1, times[i]);
         }
 
         printf("\nAverage time: %.6f sec\n", total_time / RUNS);
 
+        free(times);
         cudaDeviceSynchronize();
     }
 
